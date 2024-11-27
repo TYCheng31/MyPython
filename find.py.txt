@@ -1,0 +1,40 @@
+import psycopg2
+from psycopg2 import sql
+
+def fetch_submissions():
+    # PostgreSQL 資料庫連線參數
+    db_config = {
+        "dbname": "cmsdb",
+        "user": "cmsuser",      # 替換為你的資料庫使用者名稱
+        "password": "cmsuser",  # 替換為你的資料庫密碼
+        "host": "localhost",          # 替換為資料庫的主機位址
+        "port": "5432"                # PostgreSQL 預設連接埠
+    }
+
+    try:
+        # 建立資料庫連線
+        connection = psycopg2.connect(**db_config)
+        cursor = connection.cursor()
+
+        # 查詢 `submissions` 資料表
+        query = sql.SQL("SELECT * FROM submissions;")
+        cursor.execute(query)
+
+        # 取得查詢結果
+        rows = cursor.fetchall()
+
+        # 列印資料
+        for row in rows:
+            print(row)
+
+    except psycopg2.Error as e:
+        print(f"資料庫錯誤：{e}")
+    finally:
+        # 關閉游標與連線
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+if __name__ == "__main__":
+    fetch_submissions()
