@@ -5,7 +5,7 @@ conn = psycopg2.connect(
     user="cmsuser",            
     password="cmsuser",     
     host="localhost",           
-    port="5432"                  
+    port="5432"                   
 )
 
 cur = conn.cursor()
@@ -30,7 +30,8 @@ for result in users_data:
         participation_id_result = cur.fetchall()
 
         if participation_id_result:  # 確保參與記錄存在
-            submission_ids = set()  # 用來儲存所有唯一的 submission_id
+            # 記錄每次遇到 task_id 時的最高分數
+            highest_scores = {}  # 用來記錄每個 task_id 的最高分數
 
             for result2 in participation_id_result:
                 participation_id = result2[0]  # 提取單個 participation_id
@@ -42,28 +43,36 @@ for result in users_data:
 
                 if submission_id_result:  # 如果有對應的 submission_id
                     for submission in submission_id_result:
-                        submission_ids.add(submission[0])  # 將每個 submission_id 加入集合，確保唯一性
+                        submission_id = submission[0]  # 提取 submission_id
+                        task_id = submission[1]  # 提取 task_id
 
-            # 確保 submission_ids 不為空，並打印每個 submission_id 和對應的 timestamp
-            for submission_id in submission_ids:
-                # 查詢對應的 timestamp 和 task_id
-                cur.execute("SELECT timestamp, task_id FROM submissions WHERE id = %s", (submission_id,))
-                submission_result = cur.fetchone()
+                        # 查詢該 submission_id 的 score
+                        cur.execute("SELECT score FROM submission_results WHERE submission_id = %s", (submission_id,))
+                        score_result = cur.fetchone()
+                        if score_result:
+                            score = score_result[0]
+                            
+                            if score == 0.0:
+                                continue
 
-                cur.execute("SELECT score FROM submission_results WHERE submission_id = %s", (submission_id,))
-                score_result = cur.fetchone()
-                score = score_result[0]
+                            # 每次遇到不同的 task_id 時，重設該 task_id 的最高分數
+                            if task_id not in highest_scores:
+                                highest_scores[task_id] = score
+                            else:
+                                # 更新最高分數（如果當前分數更高）
+                                if score > highest_scores[task_id]:
+                                    highest_scores[task_id] = score
 
-                if score == 0.0:
-                    continue
-
-                if submission_result:  # 確保找到了對應的 timestamp 和 task_id
-                    timestamp = submission_result[0]
-                    task_id = submission_result[1]
-                    # 打印出每個 submission_id 和對應的 timestamp, task_id 和 score
-                    print(f"first_name: {user_name} user_id: {user_id} participation_id: {participation_id} contest_id: {contest_id} submission_id: {submission_id} timestamp: {timestamp} task_id: {task_id} score: {score}")
+            # 打印出每個 task_id 的最高分數
+            for task_id, highest_score in highest_scores.items():
+                # 查詢該 task_id 對應的 timestamp
+                cur.execute("SELECT timestamp FROM submissions WHERE task_id = %s AND participation_id IN (SELECT id FROM participations WHERE user_id = %s)", (task_id, user_id))
+                timestamp_result = cur.fetchone()
+                if timestamp_result:
+                    timestamp = timestamp_result[0]
+                    print(f"first_name: {user_name} user_id: {user_id} contest_id: {contest_id} task_id: {task_id} highest_score: {highest_score} timestamp: {timestamp}")
                 else:
-                    print(f"timestamp or task_id not found for submission_id: {submission_id}")
+                    print(f"timestamp not found for task_id: {task_id}")
         else:
             print(f"participation_id not found for user_id: {user_id}")
 
