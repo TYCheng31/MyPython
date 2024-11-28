@@ -25,8 +25,8 @@ for result in users_data:
     if user_name not in processed_names:
         processed_names.add(user_name)  # 標記該 first_name 為已處理
         
-        # 查詢 participations 資料
-        cur.execute("SELECT id FROM participations WHERE user_id = %s", (user_id,))
+        # 查詢 participations 資料，並同時獲取 contest_id
+        cur.execute("SELECT id, contest_id FROM participations WHERE user_id = %s", (user_id,))
         participation_id_result = cur.fetchall()
 
         if participation_id_result:  # 確保參與記錄存在
@@ -34,6 +34,7 @@ for result in users_data:
 
             for result2 in participation_id_result:
                 participation_id = result2[0]  # 提取單個 participation_id
+                contest_id = result2[1]  # 提取 contest_id
                 
                 # 查詢 submissions 資料，同時獲取 submission_id 和 task_id
                 cur.execute("SELECT id, task_id FROM submissions WHERE participation_id = %s", (participation_id,))
@@ -60,7 +61,7 @@ for result in users_data:
                     timestamp = submission_result[0]
                     task_id = submission_result[1]
                     # 打印出每個 submission_id 和對應的 timestamp, task_id 和 score
-                    print(f"first_name: {user_name} user_id: {user_id} submission_id: {submission_id} timestamp: {timestamp} task_id: {task_id} score: {score}")
+                    print(f"first_name: {user_name} user_id: {user_id} participation_id: {participation_id} contest_id: {contest_id} submission_id: {submission_id} timestamp: {timestamp} task_id: {task_id} score: {score}")
                 else:
                     print(f"timestamp or task_id not found for submission_id: {submission_id}")
         else:
