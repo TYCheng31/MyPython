@@ -1,8 +1,6 @@
 import psycopg2
 import csv
-from datetime import datetime, timedelta
 
-# 連接資料庫
 conn = psycopg2.connect(
     dbname="cmsdb",  
     user="cmsuser",            
@@ -16,8 +14,8 @@ cur = conn.cursor()
 # 用來儲存查詢結果的列表
 results = []
 
-# 用來追蹤每個 user 和 contest_id 的最高分數總和
-user_contest_scores = {}
+# 用來追蹤每個 user 在各個 contest 下的最高分數
+user_scores = {}
 
 # 查詢 submission_results 資料，根據 submission_id 獲得 score 和 submission_id
 cur.execute("SELECT submission_id, score FROM submission_results")
@@ -68,62 +66,46 @@ for submission_result in submission_results:
             else:
                 first_name = "Unknown"
 
-            # 檢查並更新該 user 和 contest 的最高分數
-            if (user_id, contest_id) not in user_contest_scores:
-                user_contest_scores[(user_id, contest_id)] = {
+            # 檢查並更新該 user 在各個 contest 的最高分數
+            if user_id not in user_scores:
+                user_scores[user_id] = {
                     "first_name": first_name,
-                    "contest_name": contest_name,
-                    "contest_start": contest_start,
                     "total_score": score,  # 初始化時設為當前 task 的分數
                     "task_scores": {task_id: score},  # 用來儲存每個 task 的最高分
-                    "timestamps": {task_id: timestamp}  # 用來儲存每個 task 的 timestamp
+                    "timestamps": {task_id: timestamp},  # 用來儲存每個 task 的最新 timestamp
                 }
             else:
-                # 如果該 user 在該 contest 的 task_id 已經出現，檢查並更新最高分數
-                if task_id not in user_contest_scores[(user_id, contest_id)]["task_scores"]:
-                    user_contest_scores[(user_id, contest_id)]["task_scores"][task_id] = score
-                    user_contest_scores[(user_id, contest_id)]["timestamps"][task_id] = timestamp
+                # 如果該 user 在該 task_id 已經出現，檢查並更新最高分數
+                if task_id not in user_scores[user_id]["task_scores"]:
+                    user_scores[user_id]["task_scores"][task_id] = score
+                    user_scores[user_id]["timestamps"][task_id] = timestamp
                 else:
-                    # 只更新最高分數，並保留最早的 timestamp
-                    current_score = user_contest_scores[(user_id, contest_id)]["task_scores"][task_id]
-                    current_timestamp = user_contest_scores[(user_id, contest_id)]["timestamps"][task_id]
+                    # 只更新最高分數，並保留最新的 timestamp
+                    if score > user_scores[user_id]["task_scores"][task_id]:
+                        user_scores[user_id]["task_scores"][task_id] = score
+                        user_scores[user_id]["timestamps"][task_id] = timestamp
+                    elif score == user_scores[user_id]["task_scores"][task_id]:
+                        # 如果分數相同，保留較新的 timestamp
+                        if timestamp > user_scores[user_id]["timestamps"][task_id]:
+                            user_scores[user_id]["timestamps"][task_id] = timestamp
 
-                    if score > current_score:
-                        # 如果分數更高，直接更新
-                        user_contest_scores[(user_id, contest_id)]["task_scores"][task_id] = score
-                        user_contest_scores[(user_id, contest_id)]["timestamps"][task_id] = timestamp
-                    elif score == current_score:
-                        # 如果分數相同，保留 timestamp 最早的
-                        if timestamp < current_timestamp:
-                            user_contest_scores[(user_id, contest_id)]["timestamps"][task_id] = timestamp
+                # 更新該 user 的總分，將該 user 在不同 contest 中的 task_id 最高分加總
+                user_scores[user_id]["total_score"] = sum(user_scores[user_id]["task_scores"].values())
 
-                # 更新該 contest 的總分，將最高分數加總
-                user_contest_scores[(user_id, contest_id)]["total_score"] = sum(
-                    user_contest_scores[(user_id, contest_id)]["task_scores"].values()
-                )
-
-# 提取每個 user 和 contest_id 中的最新 timestamp
+# 提取每個 user 的結果
 final_results = []
 
-for (user_id, contest_id), data in user_contest_scores.items():
-    # 取得該 contest_id 下所有 task 的最新 timestamp
-    latest_timestamp = max(data["timestamps"].values())
+for user_id, data in user_scores.items():
+    total_score = data["total_score"]
+    first_name = data["first_name"]
     
-    # 計算時間差並格式化為 hh:mm:ss
-    contest_start = data["contest_start"]
-    time_difference = latest_timestamp - contest_start
-    total_seconds = int(time_difference.total_seconds())
-    hours, remainder = divmod(total_seconds, 3600)
-    minutes, seconds = divmod(remainder, 60)
-    time_difference_str = f"{hours:02}:{minutes:02}:{seconds:02}"
-
+    # 按照 task_scores 取每個 task_id 的最新 timestamp
+    latest_timestamp = max(data["timestamps"].values()).strftime("%Y-%m-%d %H:%M:%S")  # 格式化 timestamp 顯示
+    
     final_results.append({
-        "first_name": data["first_name"],
-        "contest_name": data["contest_name"],
-        "contest_start": contest_start.strftime("%Y-%m-%d %H:%M:%S"),
-        "timestamp": latest_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-        "total_score": data["total_score"],
-        "time_difference": time_difference_str  # 格式化後的時間差
+        "first_name": first_name,
+        "total_score": total_score,
+        "timestamp": latest_timestamp
     })
 
 # 按照 first_name 排序結果
@@ -132,13 +114,13 @@ final_results_sorted = sorted(final_results, key=lambda x: x['first_name'])
 # 寫入 CSV 檔案
 with open("output.csv", "w", newline="") as csvfile:
     # 設定最終要寫入 CSV 的欄位名稱
-    fieldnames = ["first_name", "contest_name", "contest_start", "timestamp", "time_difference", "total_score"]
+    fieldnames = ["first_name", "total_score", "timestamp"]
     writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
     # 寫入 CSV 標題
     writer.writeheader()
 
-    # 寫入每條資料（包括時間差）
+    # 寫入每條資料（包括 timestamp）
     for result in final_results_sorted:
         writer.writerow(result)
 
