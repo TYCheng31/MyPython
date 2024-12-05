@@ -54,7 +54,7 @@ class UNet(nn.Module):
 # 加載模型
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = UNet().to(device)
-model.load_state_dict(torch.load('E:\\MyPython\\CV_HW\\pytorch\\best_denoise_unet_model50.pth', map_location=device))
+model.load_state_dict(torch.load('E:\\model\\best_denoise_unet_model50.pth', map_location=device))
 model.eval()
 
 # 實時影像處理

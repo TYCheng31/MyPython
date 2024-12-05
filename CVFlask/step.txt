@@ -1,1 +1,0 @@
-進入虛擬環境 python -m venv venv
