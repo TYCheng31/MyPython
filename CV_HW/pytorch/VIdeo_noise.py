@@ -53,7 +53,7 @@ class UNet(nn.Module):
 # 載入模型
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = UNet().to(device)
-model.load_state_dict(torch.load('E:\\CV\\best_denoise_unet_model.pth', map_location=device))
+model.load_state_dict(torch.load('E:\\model\\best_denoise_unet_model50.pth', map_location=device))
 model.eval()
 print("模型已成功載入！")
 
