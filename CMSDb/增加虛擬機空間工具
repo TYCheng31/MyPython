@@ -1,0 +1,5 @@
+先在VMWare最外面擴展Expand Disk空間
+進入虛擬機終端機輸入
+sudo apt-get update
+sudo apt-get install gparted
+sudo gparted
